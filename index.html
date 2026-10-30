@@ -168,7 +168,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "cloud-2026-10-30d";
+  var PAGE_VERSION = "cloud-2026-10-30e";
 
   var EXEC_URL = "https://script.google.com/macros/s/AKfycbwG4nnQfxGw14xwTt-j46ZcKwPJwVXFlyHJBz-mSxlfKITfPWKF23wCCFXNWWGyyi6Kvw/exec";
 
@@ -184,6 +184,11 @@
   var qs    = new URLSearchParams(location.search);
   var TOPIC = normalizeTopic(qs.get("topic") || "");
   var LABEL = qs.get("label") || prettify(TOPIC);
+
+  // ?show=1 reveals the cloud on load. Use it where the cloud IS the content
+  // (a topic subpage). Leave it off where contributing comes first: seeing the
+  // existing words before you type anchors people onto them.
+  var SHOW_ON_LOAD = qs.get("show") === "1";
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -553,6 +558,11 @@
       $("errView").hidden = true;
       $("formView").hidden = false;
     });
+
+    if (SHOW_ON_LOAD) {
+      $("peek").hidden = true;
+      showCloud();
+    }
   }
 })();
 </script>
