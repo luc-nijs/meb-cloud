@@ -24,6 +24,9 @@
     -webkit-text-size-adjust: 100%;
   }
   .wrap { max-width: 560px; margin: 0 auto; padding: 24px 20px 40px; }
+  /* With the title block gone the frame starts at the invitation, so the
+     surrounding page's own spacing is doing the work. */
+  body.noheading .wrap { padding-top: 8px; }
   h1 { font-size: 1.15rem; font-weight: 600; margin: 0 0 4px; }
   .topic { color: var(--accent); font-weight: 600; font-size: 1.15rem;
            display: block; margin-bottom: 16px; }
@@ -107,8 +110,10 @@
 <body>
 <div class="wrap">
 
-  <h1>Add your words to the</h1>
-  <span class="topic" id="topicLabel">topic wordcloud</span>
+  <div id="heading">
+    <h1>Add your words to the</h1>
+    <span class="topic" id="topicLabel">topic wordcloud</span>
+  </div>
 
   <!-- ===== form ===== -->
   <section id="formView">
@@ -168,7 +173,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "cloud-2026-10-30f";
+  var PAGE_VERSION = "cloud-2026-10-30g";
 
   var EXEC_URL = "https://script.google.com/macros/s/AKfycbwG4nnQfxGw14xwTt-j46ZcKwPJwVXFlyHJBz-mSxlfKITfPWKF23wCCFXNWWGyyi6Kvw/exec";
 
@@ -189,6 +194,10 @@
   // (a topic subpage). Leave it off where contributing comes first: seeing the
   // existing words before you type anchors people onto them.
   var SHOW_ON_LOAD = qs.get("show") === "1";
+
+  // &heading=0 drops the page's own title block. Use it when the surrounding
+  // page already names the topic — otherwise the heading appears twice.
+  var SHOW_HEADING = qs.get("heading") !== "0";
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -543,6 +552,11 @@
 
   // ------------------------------------------------------------------ init
   $("topicLabel").textContent = LABEL;
+  if (!SHOW_HEADING) {
+    $("heading").hidden = true;
+    document.body.classList.add("noheading");
+  }
+  document.title = LABEL + " — MEB wordcloud";
 
   if (!TOPIC) {
     $("formView").hidden = true;
