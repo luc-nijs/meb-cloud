@@ -173,7 +173,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "cloud-2026-10-30g";
+  var PAGE_VERSION = "cloud-2026-10-30h";
 
   var EXEC_URL = "https://script.google.com/macros/s/AKfycbwG4nnQfxGw14xwTt-j46ZcKwPJwVXFlyHJBz-mSxlfKITfPWKF23wCCFXNWWGyyi6Kvw/exec";
 
@@ -198,6 +198,12 @@
   // &heading=0 drops the page's own title block. Use it when the surrounding
   // page already names the topic — otherwise the heading appears twice.
   var SHOW_HEADING = qs.get("heading") !== "0";
+
+  // &form=0 hides the contribution form: display only. This is the subpage
+  // case, where the cloud sits beside the videos and the invitation to
+  // contribute lives elsewhere. Implies the cloud is shown on load, since
+  // otherwise the page would have nothing in it.
+  var SHOW_FORM = qs.get("form") !== "0";
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -385,8 +391,9 @@
         render(words.slice(0, MAX_SHOWN));
       })
       .catch(function () {
-        $("cloudNote").textContent =
-          "The cloud can't be loaded just now. Your words were still sent.";
+        $("cloudNote").textContent = SHOW_FORM
+          ? "The cloud can't be loaded just now. Your words were still sent."
+          : "The cloud can't be loaded just now.";
       });
   }
 
@@ -402,8 +409,9 @@
 
     if (!words.length) {
       cloud.hidden = true; list.hidden = true;
-      $("cloudNote").textContent =
-        "No words have been added to this topic yet \u2014 yours may be the first.";
+      $("cloudNote").textContent = SHOW_FORM
+        ? "No words have been added to this topic yet \u2014 yours may be the first."
+        : "No words have been added to this topic yet.";
       return;
     }
 
@@ -578,7 +586,10 @@
       $("formView").hidden = false;
     });
 
-    if (SHOW_ON_LOAD) {
+    if (!SHOW_FORM) {
+      $("formView").hidden = true;
+      showCloud();
+    } else if (SHOW_ON_LOAD) {
       $("peek").hidden = true;
       showCloud();
     }
