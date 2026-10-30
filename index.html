@@ -168,7 +168,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "cloud-2026-10-30e";
+  var PAGE_VERSION = "cloud-2026-10-30f";
 
   var EXEC_URL = "https://script.google.com/macros/s/AKfycbwG4nnQfxGw14xwTt-j46ZcKwPJwVXFlyHJBz-mSxlfKITfPWKF23wCCFXNWWGyyi6Kvw/exec";
 
@@ -216,11 +216,16 @@
     return /^[a-z0-9][a-z0-9_-]{1,39}$/.test(s) ? s : "";
   }
 
+  /**
+   * Sentence case, not title case: "Good teaching", not "Good Teaching".
+   * Only underscores become spaces — a hyphen is part of the word, so
+   * 'one-to-one' survives intact. Anything irregular (an initialism, an
+   * accent) is given explicitly with &label= instead.
+   */
   function prettify(slug) {
     if (!slug) return "topic wordcloud";
-    return slug.replace(/[_-]+/g, " ").replace(/\b[a-z]/g, function (c) {
-      return c.toUpperCase();
-    });
+    var s = slug.replace(/_+/g, " ");
+    return s.charAt(0).toUpperCase() + s.slice(1);
   }
 
   function ref4() {
