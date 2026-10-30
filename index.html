@@ -98,9 +98,9 @@
   <section id="formView">
     <p>Don't feel like recording something? You can still contribute. Add up to
        five keywords below &mdash; <strong>one word each</strong>.</p>
-    <p class="small">For something that really needs two words, join them with an
-       underscore: <code>child_led</code>. Please don't enter names or anything
-       that identifies a person.</p>
+    <p class="small">One word per box &mdash; no spaces. If two words really belong
+       together, join them with an underscore: <code>child_led</code>. Please don't
+       enter names or anything that identifies a person.</p>
 
     <div class="slots" id="slots"></div>
     <p class="hint" id="hint"></p>
@@ -143,7 +143,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "cloud-2026-10-30";
+  var PAGE_VERSION = "cloud-2026-10-30b";
 
   var EXEC_URL = "https://script.google.com/macros/s/AKfycbwG4nnQfxGw14xwTt-j46ZcKwPJwVXFlyHJBz-mSxlfKITfPWKF23wCCFXNWWGyyi6Kvw/exec";
 
@@ -152,6 +152,7 @@
   var SLOTS     = 5;
   var MIN_LEN   = 2;
   var MAX_LEN   = 30;
+  var MAX_JOINS = 1;      // one underscore: a compound, not a phrase
   var CLOUD_MIN = 6;      // below this many distinct words, a list reads better
   var MAX_SHOWN = 120;
 
@@ -168,13 +169,13 @@
     var s = String(raw == null ? "" : raw);
     s = s.replace(/\u00A0/g, " ").trim().toLowerCase();
     if (!s) return "";
-    s = s.replace(/\s+/g, "_");
+    if (/\s/.test(s)) return "";                  // one word per box, no folding
     s = s.replace(/[^a-z0-9\u00C0-\u024F'_-]/g, "");
     s = s.replace(/_{2,}/g, "_").replace(/-{2,}/g, "-");
     s = s.replace(/^[_'-]+/, "").replace(/[_'-]+$/, "");
     if (!/[a-z\u00C0-\u024F]/.test(s)) return "";
     if (s.length < MIN_LEN || s.length > MAX_LEN) return "";
-    if ((s.match(/_/g) || []).length > 2) return "";
+    if ((s.match(/_/g) || []).length > MAX_JOINS) return "";
     return s;
   }
 
@@ -232,18 +233,22 @@
 
   /** Enables the button and warns about entries the server would discard. */
   function review() {
-    var usable = 0, problems = 0;
+    var usable = 0, spaced = 0, other = 0;
     inputs().forEach(function (input) {
       var raw = input.value.trim();
       if (!raw) { input.classList.remove("bad"); return; }
-      if (normalizeWord(raw)) { usable++; input.classList.remove("bad"); }
-      else { problems++; input.classList.add("bad"); }
+      if (normalizeWord(raw)) { usable++; input.classList.remove("bad"); return; }
+      input.classList.add("bad");
+      if (/\s/.test(raw)) spaced++; else other++;
     });
 
     $("send").disabled = usable === 0 || !TOPIC;
-    $("hint").textContent = problems
-      ? "The highlighted entries can't be used — one word each, at least two letters."
-      : "";
+    $("hint").textContent =
+      spaced ? "One word per box. If two words really belong together, join them " +
+               "with an underscore: child_led."
+    : other  ? "The highlighted entries can't be used — at least two letters, and " +
+               "a word rather than a number."
+    :          "";
   }
 
   // ------------------------------------------------------------------ send
