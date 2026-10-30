@@ -85,6 +85,22 @@
               color: var(--dim); margin: 0 0 8px; font-weight: 600; }
   .panel p:last-child { margin-bottom: 0; }
 
+  /* --- the packed canvas cloud --- */
+  .canvasWrap {
+    margin: 20px 0 0; padding: 0;
+    border: 1px solid var(--line); border-radius: 10px;
+    background: #000; overflow: hidden; line-height: 0;
+  }
+  .canvasWrap canvas { display: block; width: 100%; height: auto; }
+
+  /* Present for screen readers and text search; invisible on screen. The
+     canvas itself carries no readable content, so this is the real text. */
+  .sr-only {
+    position: absolute; width: 1px; height: 1px;
+    margin: -1px; padding: 0; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+  }
+
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -132,18 +148,27 @@
 
   <!-- ===== cloud ===== -->
   <section id="cloudView" hidden>
-    <ul class="cloud" id="cloud" aria-label="Keywords contributed for this topic"></ul>
+    <div class="canvasWrap" id="canvasWrap" hidden>
+      <canvas id="canvas" role="img"
+              aria-label="Wordcloud of the keywords contributed for this topic"></canvas>
+    </div>
+    <ul class="sr-only" id="srList"></ul>
+    <ul class="cloud" id="cloud" hidden
+        aria-label="Keywords contributed for this topic"></ul>
     <div class="wordlist" id="wordlist" hidden></div>
     <p class="small" id="cloudNote"></p>
   </section>
 
 </div>
 
+<!-- wordcloud2.js 1.2.3 (MIT, timdream). Served from this repo rather than a
+     CDN: no visitor's browser contacts a third party to see the cloud. -->
+<script src="wordcloud2.js"></script>
 <script>
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "cloud-2026-10-30b";
+  var PAGE_VERSION = "cloud-2026-10-30c";
 
   var EXEC_URL = "https://script.google.com/macros/s/AKfycbwG4nnQfxGw14xwTt-j46ZcKwPJwVXFlyHJBz-mSxlfKITfPWKF23wCCFXNWWGyyi6Kvw/exec";
 
@@ -346,10 +371,15 @@
       });
   }
 
+  var lastWords = null;        // kept so a resize can redraw without refetching
+
   function render(words) {
     var cloud = $("cloud"), list = $("wordlist");
     cloud.textContent = "";
     list.textContent = "";
+    $("srList").textContent = "";
+    $("canvasWrap").hidden = true;
+    lastWords = words;
 
     if (!words.length) {
       cloud.hidden = true; list.hidden = true;
@@ -376,28 +406,126 @@
     }
 
     list.hidden = true;
-    cloud.hidden = false;
 
-    var max = words[0].n, min = words[words.length - 1].n;
-    var lo = 0.95, hi = 2.4;                                   // rem
-
-    words.forEach(function (item, i) {
-      var t = max === min ? 0.5 : Math.sqrt((item.n - min) / (max - min));
-      var li = document.createElement("li");
-      li.textContent = display(item.w);
-      li.style.fontSize = (lo + (hi - lo) * t).toFixed(2) + "rem";
-      li.style.fontWeight = t > 0.55 ? "600" : "400";
-      li.style.color = i < 3 ? "var(--accent)" : (t < 0.2 ? "var(--dim)" : "var(--fg)");
-      li.title = item.n === 1 ? "mentioned once" : "mentioned " + item.n + " times";
-      cloud.appendChild(li);
-    });
+    // The packed canvas cloud, when the browser can draw one. Falls back to
+    // the flowed text cloud otherwise — the words still get shown.
+    if (window.WordCloud && WordCloud.isSupported) {
+      cloud.hidden = true;
+      $("canvasWrap").hidden = false;
+      drawCanvas(words);
+    } else {
+      $("canvasWrap").hidden = true;
+      cloud.hidden = false;
+      drawFlowed(words, cloud);
+    }
 
     var total = words.reduce(function (a, b) { return a + b.n; }, 0);
     $("cloudNote").textContent = words.length + " different words, "
       + total + " contributions in total.";
   }
 
+  /* ----------------------------------------------------------- the canvas */
+
+  // Taken from the BEM/MEB masthead: orange, blue, yellow on black.
+  var BRAND = ["#F58A12", "#1E90DC", "#FFD400"];
+  var TINTS = ["#FFB65A", "#6FC0F0", "#FFE87A", "#C98A3A", "#4FA3D1", "#D9B400"];
+
+  /** Stable colour per word, so a redraw does not reshuffle the palette. */
+  function hashOf(word) {
+    var h = 0;
+    for (var i = 0; i < word.length; i++) h = (h * 31 + word.charCodeAt(i)) % 99991;
+    return h;
+  }
+
+  function drawCanvas(words) {
+    var canvas = $("canvas");
+    var wrap   = $("canvasWrap");
+    var dpr    = Math.min(window.devicePixelRatio || 1, 2);
+
+    var cssW = Math.max(240, Math.round(wrap.clientWidth));
+    var cssH = Math.max(220, Math.min(420, Math.round(cssW * 0.66)));
+
+    canvas.width  = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    canvas.style.height = cssH + "px";
+
+    var maxN = words[0].n;
+    var minN = words[words.length - 1].n;
+    var minPx = 13 * dpr;
+    var maxPx = Math.max(30 * dpr, Math.min(canvas.width, canvas.height) * 0.26);
+
+    function sizeFor(n) {
+      if (maxN === minN) return Math.round((minPx + maxPx) / 2);
+      var t = Math.sqrt((n - minN) / (maxN - minN));
+      return Math.round(minPx + (maxPx - minPx) * t);
+    }
+
+    WordCloud(canvas, {
+      list: words.map(function (item) { return [display(item.w), item.n]; }),
+      backgroundColor: "#000000",
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
+      fontWeight: "700",
+      gridSize: Math.max(4, Math.round(6 * dpr * cssW / 560)),
+      weightFactor: sizeFor,
+      minSize: minPx,
+      color: function (word, weight) {
+        var n = Number(weight);
+        var t = (maxN === minN) ? 1 : (n - minN) / (maxN - minN);
+        var pool = t > 0.4 ? BRAND : TINTS;
+        return pool[hashOf(word) % pool.length];
+      },
+      rotateRatio: 0.32,            // roughly a third turned on their side
+      rotationSteps: 2,             // upright or vertical, nothing in between
+      minRotation: -Math.PI / 2,
+      maxRotation: Math.PI / 2,
+      shuffle: true,
+      drawOutOfBound: false,
+      shrinkToFit: true,            // shrink rather than silently drop a word
+      origin: [canvas.width / 2, canvas.height / 2]
+    });
+
+    // The canvas holds pixels, not text. This is the version that is readable
+    // by a screen reader and findable by a text search.
+    var sr = $("srList");
+    sr.textContent = "";
+    words.forEach(function (item) {
+      var li = document.createElement("li");
+      li.textContent = display(item.w) + ": "
+        + (item.n === 1 ? "one mention" : item.n + " mentions");
+      sr.appendChild(li);
+    });
+  }
+
+  /** The no-canvas path: words flowed inline, sized and coloured the same way. */
+  function drawFlowed(words, cloud) {
+    var max = words[0].n, min = words[words.length - 1].n;
+    var lo = 0.95, hi = 2.4;                                   // rem
+    words.forEach(function (item) {
+      var t = max === min ? 0.5 : Math.sqrt((item.n - min) / (max - min));
+      var li = document.createElement("li");
+      li.textContent = display(item.w);
+      li.style.fontSize = (lo + (hi - lo) * t).toFixed(2) + "rem";
+      li.style.fontWeight = t > 0.55 ? "700" : "400";
+      li.style.color = (t > 0.4 ? BRAND : TINTS)[hashOf(item.w) % (t > 0.4 ? BRAND : TINTS).length];
+      li.title = item.n === 1 ? "mentioned once" : "mentioned " + item.n + " times";
+      cloud.appendChild(li);
+    });
+  }
+
   function display(word) { return word.replace(/_/g, " "); }
+
+  // A canvas does not reflow, so it is redrawn when the width really changes.
+  // Ignoring small deltas keeps mobile address-bar show/hide from retriggering.
+  var lastWidth = 0, resizeTimer = null;
+  window.addEventListener("resize", function () {
+    if (!lastWords || !lastWords.length || lastWords.length < CLOUD_MIN) return;
+    if (!window.WordCloud || !WordCloud.isSupported) return;
+    var w = $("canvasWrap").clientWidth;
+    if (Math.abs(w - lastWidth) < 24) return;
+    lastWidth = w;
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () { drawCanvas(lastWords); }, 250);
+  });
 
   // ------------------------------------------------------------------ init
   $("topicLabel").textContent = LABEL;
