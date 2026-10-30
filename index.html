@@ -168,7 +168,7 @@
 (function () {
   "use strict";
 
-  var PAGE_VERSION = "cloud-2026-10-30c";
+  var PAGE_VERSION = "cloud-2026-10-30d";
 
   var EXEC_URL = "https://script.google.com/macros/s/AKfycbwG4nnQfxGw14xwTt-j46ZcKwPJwVXFlyHJBz-mSxlfKITfPWKF23wCCFXNWWGyyi6Kvw/exec";
 
@@ -451,8 +451,8 @@
 
     var maxN = words[0].n;
     var minN = words[words.length - 1].n;
-    var minPx = 13 * dpr;
-    var maxPx = Math.max(30 * dpr, Math.min(canvas.width, canvas.height) * 0.26);
+    var minPx = 14 * dpr;
+    var maxPx = Math.max(30 * dpr, Math.min(canvas.width, canvas.height) * 0.20);
 
     function sizeFor(n) {
       if (maxN === minN) return Math.round((minPx + maxPx) / 2);
@@ -465,9 +465,13 @@
       backgroundColor: "#000000",
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
       fontWeight: "700",
-      gridSize: Math.max(4, Math.round(6 * dpr * cssW / 560)),
+      gridSize: Math.max(4, Math.round(4 * dpr * cssW / 560)),
       weightFactor: sizeFor,
-      minSize: minPx,
+      // minSize is deliberately NOT set to minPx. The library skips a word when
+      // `fontSize <= minSize`, so a floor equal to the smallest size drops every
+      // least-frequent word — which is most of them. sizeFor already guarantees
+      // a readable floor; this is only a guard against a degenerate canvas.
+      minSize: 6,
       color: function (word, weight) {
         var n = Number(weight);
         var t = (maxN === minN) ? 1 : (n - minN) / (maxN - minN);
